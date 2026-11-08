@@ -1,0 +1,26 @@
+# A tag v* → tests → GoReleaser → a draft GitHub release (5 binaries + checksums.txt).
+# Needs the repository variable KITA_BRAIN_URL (wss://<app domain>/connector).
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.20.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KITA_BRAIN_URL: ${{ vars.KITA_BRAIN_URL }}

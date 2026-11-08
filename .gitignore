@@ -1,0 +1,9 @@
+# build output
+/kita-connector
+/kita-connector.exe
+/dist/
+
+# local WhatsApp session + queue — never commit
+*.db
+*.db-*
+/data/

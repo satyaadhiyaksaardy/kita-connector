@@ -1,0 +1,44 @@
+# Release builds (DESIGN.md → Build and release): the five targets, raw
+# binaries plus checksums.txt, on GitHub Releases. Unsigned in v1.
+#
+# KITA_BRAIN_URL (wss://<app domain>/connector) is baked in as the default
+# brain; a build without it fails rather than shipping a connector with no
+# brain. Files are named without a version, so
+# https://github.com/<owner>/kita-connector/releases/latest/download/<name>
+# is a stable link for the dashboard.
+version: 2
+project_name: kita-connector
+
+builds:
+  - main: ./cmd/kita-connector
+    binary: kita-connector
+    env: [CGO_ENABLED=0] # pure-Go SQLite
+    goos: [windows, darwin, linux]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X github.com/satyaadhiyaksaardy/kita-connector/internal/config.DefaultBrain={{ .Env.KITA_BRAIN_URL }}
+
+archives:
+  - formats: [binary] # couples download one file and run it
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: satyaadhiyaksaardy
+    name: kita-connector
+  draft: true # reviewed and published by hand; releases/latest only sees published ones
