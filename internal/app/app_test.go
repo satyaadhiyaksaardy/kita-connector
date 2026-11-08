@@ -30,6 +30,16 @@ type syncBuf struct {
 func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.b.Write(p) }
 func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
 
+// runUntilCleanup runs a until the test ends, then stops it and waits, so it
+// isn't still writing into t.TempDir while Go removes that (Linux CI failed
+// with "directory not empty").
+func runUntilCleanup(t *testing.T, a *App) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = a.Run(ctx); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
+}
+
 func newApp(t *testing.T, b *fakebrain.Brain, logs *syncBuf) *App {
 	return &App{
 		Cfg:      config.Config{Brain: b.URL(), Data: t.TempDir(), Mode: "self", LogLevel: "debug"},
@@ -162,9 +172,7 @@ func TestImageHeldUntilDownloaded(t *testing.T) {
 		}
 		return []byte{1, 2, 3}, nil
 	}
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
-	go func() { _ = a2.Run(ctx2) }()
+	runUntilCleanup(t, a2)
 	eventually(t, "connected again", connected(a2))
 	a2.onState(wa.State{State: "open"})
 	m := b.Next("message").In
@@ -242,9 +250,7 @@ func TestReactContextSurvivesRestart(t *testing.T) {
 	logs := &syncBuf{}
 	a2 := newApp(t, b, logs)
 	a2.Cfg = a.Cfg
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
-	go func() { _ = a2.Run(ctx2) }()
+	runUntilCleanup(t, a2)
 	b.Next("message") // resent after the restart
 	b.Send(`{"type":"react","id":"R","emoji":"✅"}`)
 	eventually(t, "react attempted", func() bool { return strings.Contains(logs.String(), "react_failed") }) // not connected to WhatsApp here
@@ -276,9 +282,7 @@ func TestHostedPairing(t *testing.T) {
 		<-expire
 		return wa.ErrQRTimeout
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = a.Run(ctx) }()
+	runUntilCleanup(t, a)
 
 	if h := b.Next("hello").In; h["mode"] != "hosted" {
 		t.Fatalf("hello %v", h)
