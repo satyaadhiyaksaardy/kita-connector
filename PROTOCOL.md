@@ -89,17 +89,20 @@ anywhere except in reply to a brain `reply`/`react` inside the couple chat.
   `config`, `reply`, `react`, `pair`, `logout`. **No frame reads data from the
   brain** — transactions, budgets and reports never go to a connector.
 - **The brain enforces, the connector is untrusted.** Frame shape and size
-  (≤ 6 MB) are validated; per-key limits: 60 `message` frames per minute and
-  10 connections per minute; unknown types ignored; the couple comes only from
-  the key, never from frame content.
+  (≤ 6 MB) are validated; per-key limits: 60 `message` frames per minute (a
+  frame over the limit gets no `received`, so the resend timer retries it) and
+  10 connections per minute (over it, the upgrade is refused with HTTP 429);
+  unknown types ignored; the couple comes only from the key, never from frame
+  content.
 - **Publishing this code reveals no secret.** It contains no keys or brain
   secrets; the brain's code and data stay private, and its public surface (the
   website, `/health`, `/connector`) is the same with or without this repo.
 - **A modified connector only affects its owner's own WhatsApp and own couple.**
 - **If a key leaks**, its holder could add fake entries to that couple's sheet,
   keep replacing their real connector (`4004`), and learn `partnerPhone` — but
-  read nothing. The brain logs every replacement with the source IP and warns
-  the couple on their dashboard; the fix is a new key.
+  read nothing. The brain logs every replacement with the source IP for its
+  operator (a warning on the couple's dashboard is planned); the fix is a new
+  key.
 - **Releases** are built by CI from a tagged commit with published checksums,
   so anyone can rebuild and compare.
 
@@ -114,5 +117,12 @@ anywhere except in reply to a brain `reply`/`react` inside the couple chat.
 - A resend of a message still being processed (dedup row `pending`) is
   ignored without `received`; one already finished gets `received` again.
 - Dedup by (couple, `message.id`) before parsing — replays are expected.
+- A `message` sent before the couple was set up (WhatsApp's history sync
+  replays a chat's past messages to a newly linked device) is answered
+  `received` silently: no reaction, reply or row.
+- Field limits: `id` ≤ 128 characters, `text` ≤ 4096, `caption` ≤ 1024, and
+  the text or caption starts with `$` (after leading whitespace). A frame that
+  fails them is rejected for good: `received` (when its `id` is usable), no
+  reaction or reply.
 - Reject unpaid/paused couples by replying once with a notice, logging nothing.
 - `from` maps to tenant members: `linked` = the partner whose WhatsApp is linked.
